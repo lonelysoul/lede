@@ -1,0 +1,60 @@
+name: Build LEDE
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libncurses5-dev libncursesw5-dev zlib1g-dev gawk git ccache gettext libssl-dev xsltproc wget unzip python3 python3-distutils python3-setuptools
+
+    - name: Find largest directory
+      id: find_largest_directory
+      run: |
+        largest_dir=$(df -h --output=avail,target | awk 'NR>1 {print $1 " " $2}' | sort -hr | head -n 1 | cut -d' ' -f2)
+        echo "Found largest directory: $largest_dir"
+        echo "::set-output name=largest_dir::$largest_dir"
+
+    - name: Clone LEDE
+      run: |
+        mkdir -p ${{ steps.find_largest_directory.outputs.largest_dir }}/lede
+        git clone https://github.com/coolsnowwolf/lede ${{ steps.find_largest_directory.outputs.largest_dir }}/lede
+        cp .config ${{ steps.find_largest_directory.outputs.largest_dir }}/lede/.config
+        cd ${{ steps.find_largest_directory.outputs.largest_dir }}/lede
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Build firmware
+      run: |
+        cd ${{ steps.find_largest_directory.outputs.largest_dir }}/lede
+        make defconfig
+        make -j$(nproc)
+
+    - name: Upload firmware to release
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: ${{ steps.find_largest_directory.outputs.largest_dir }}/lede/bin/targets/**/*
+        token: ${{ secrets.GITHUB_TOKEN }}
+        tag: ${{ github.ref }}
+        name: LEDE Firmware
+        body: This is an automated build of the LEDE firmware.
