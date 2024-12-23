@@ -11,12 +11,10 @@
 name: Build
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  repository_dispatch:
+  workflow_dispatch:
+    inputs:
+
   schedule:
     - cron: '0 22 * * *'
 
