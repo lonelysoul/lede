@@ -28,6 +28,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool llvm lrzsz genisoimage msmtp ninja-build p7zip p7zip-full patch pkgconf python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
 
+
     - name: Find largest directory
       id: find_largest_directory
       run: |
@@ -35,25 +36,29 @@ jobs:
         echo "Found largest directory: $largest_dir"
         echo "::set-output name=largest_dir::$largest_dir"
 
+    - name: Create workdir and symlink
+      run: |
+        mkdir -p ${{ steps.find_largest_directory.outputs.largest_dir }}/workdir
+        ln -s ${{ steps.find_largest_directory.outputs.largest_dir }}/workdir /mnt/workdir
+
     - name: Clone LEDE
       run: |
-        mkdir -p ${{ steps.find_largest_directory.outputs.largest_dir }}/lede
-        git clone https://github.com/coolsnowwolf/lede ${{ steps.find_largest_directory.outputs.largest_dir }}/lede
-        cp .config ${{ steps.find_largest_directory.outputs.largest_dir }}/lede/.config
-        cd ${{ steps.find_largest_directory.outputs.largest_dir }}/lede
+        git clone https://github.com/coolsnowwolf/lede /mnt/workdir/lede
+        cp .config /mnt/workdir/lede/.config
+        cd /mnt/workdir/lede
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
     - name: Build firmware
       run: |
-        cd ${{ steps.find_largest_directory.outputs.largest_dir }}/lede
+        cd /mnt/workdir/lede
         make defconfig
         make -j$(nproc)
 
     - name: Upload firmware to release
       uses: ncipollo/release-action@v1
       with:
-        artifacts: ${{ steps.find_largest_directory.outputs.largest_dir }}/lede/bin/targets/**/*
+        artifacts: /mnt/workdir/lede/bin/targets/**/*
         token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ github.ref }}
         name: LEDE Firmware
